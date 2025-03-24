@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Ngăn chặn các trang không cần thiết
+Disallow: /api/
+Disallow: /admin/ 
