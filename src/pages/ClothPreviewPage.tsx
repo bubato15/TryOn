@@ -47,6 +47,7 @@ const ClothPreviewPage = () => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [cooldownTime, setCooldownTime] = useState(0);
   const [isCooldown, setIsCooldown] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
 
   useEffect(() => {
     const croppedClothImage = localStorage.getItem('croppedClothImage');
@@ -95,28 +96,34 @@ const ClothPreviewPage = () => {
     setError(null);
 
     try {
-      const formData = new FormData();
-      const base64Response = await fetch(imageUrl);
-      const blob = await base64Response.blob();
-      formData.append('image_file', blob, `${type}.jpg`);
-      formData.append('size', 'auto');
+      // Convert base64/data URL to blob
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
 
-      const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+      // Create FormData and append the image
+      const formData = new FormData();
+      formData.append('method', 'basnet');
+      formData.append('file', blob);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Abort after 20 seconds
+
+      const apiResponse = await fetch('https://bgbye1.fyrean.com/remove_background/', {
         method: 'POST',
-        headers: {
-          'X-Api-Key': REMOVE_BG_API_KEY
-        },
-        body: formData
+        body: formData,
+        signal: controller.signal
       });
 
-      if (!response.ok) {
+      clearTimeout(timeoutId); // Clear timeout if response is received before timeout
+
+      if (!apiResponse.ok) {
         throw new Error(`Không thể xóa phông nền cho ${type === 'cloth' ? 'trang phục' : 'người mẫu'}`);
       }
 
-      const result = await response.blob();
+      const result = await apiResponse.blob();
       const processedImageUrl = URL.createObjectURL(result);
       
-      // Lưu ảnh đã xử lý vào localStorage
+      // Save processed image to localStorage
       const reader = new FileReader();
       reader.onloadend = () => {
         localStorage.setItem(`processed${type === 'cloth' ? 'ClothImage' : 'ModelImage'}`, reader.result as string);
@@ -126,9 +133,15 @@ const ClothPreviewPage = () => {
       return processedImageUrl;
 
     } catch (err) {
-      console.error(`Lỗi xóa phông nền cho ${type === 'cloth' ? 'trang phục' : 'người mẫu'}:`, err);
-      setError(`Không thể xóa phông nền cho ${type === 'cloth' ? 'trang phục' : 'người mẫu'}. Vui lòng thử lại.`);
-      return null;
+      if (err.name === 'AbortError') {
+        console.error(`Timeout: ${type === 'cloth' ? 'trang phục' : 'người mẫu'} ảnh gốc được trả về.`);
+        setError(`Timeout: ${type === 'cloth' ? 'trang phục' : 'người mẫu'} ảnh gốc được trả về.`);
+        return imageUrl; // Return original image URL
+      } else {
+        console.error(`Lỗi xóa phông nền cho ${type === 'cloth' ? 'trang phục' : 'người mẫu'}:`, err);
+        setError(`Không thể xóa phông nền cho ${type === 'cloth' ? 'trang phục' : 'người mẫu'}. Vui lòng thử lại.`);
+        return null;
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -140,7 +153,7 @@ const ClothPreviewPage = () => {
     
     // Set cooldown for 45 seconds
     setIsCooldown(true);
-    setCooldownTime(75);
+    setCooldownTime(80);
 
     try {
       // Type guard to ensure non-null values
@@ -149,13 +162,19 @@ const ClothPreviewPage = () => {
       }
 
       // Create an array of 3 API calls
-      //const _clothImage = await removeBackground(clothImage, "cloth")
-      const _clothImage = clothImage
+      setLoadingMessage('Đang xóa phông...');
+      const [_clothImage, _modelImage] = await Promise.all([
+        removeBackground(clothImage, "cloth"),
+        removeBackground(modelImage, "model")
+      ]);
+      setLoadingMessage('Đang mặc thử đồ...');
+      //const _modelImage = modelImage
       const apiCalls = [
-        callGeminiAPI(_clothImage, modelImage),
-        callGeminiAPI(_clothImage, modelImage),
-        callGeminiAPI(_clothImage, modelImage),
-        callGeminiAPI(_clothImage, modelImage),
+        callGeminiAPI(_clothImage, _modelImage),
+        callGeminiAPI(_clothImage, _modelImage),
+        callGeminiAPI(_clothImage, _modelImage),
+        callGeminiAPI(_clothImage, _modelImage),
+        callGeminiAPI(_clothImage, _modelImage),
       ];
 
       // Run all calls concurrently
@@ -297,7 +316,7 @@ Cách nhận biết: Trong hai bức ảnh có người mẫu đầy đủ, ản
 Đặc điểm: Bức ảnh có người mẫu mặc trang phục giống hệt với Ảnh Trang phục, và trang phục được ghép vào bằng chỉnh sửa ảnh.
 Cách nhận biết: Trong hai bức ảnh có người mẫu đầy đủ, ảnh nào có trang phục trùng khớp với Ảnh Trang phục, đó là Ảnh Kết quả. (Nếu cần, có thể kiểm tra dấu hiệu chỉnh sửa như viền không tự nhiên hoặc ánh sáng không đồng đều, nhưng không bắt buộc nếu trang phục đã rõ ràng giống nhau).
 Quy trình gán nhãn
-Bước 1: Xác định bức ảnh không có người mẫu hoàn chỉnh (hoặc thiếu đầu, tay, chân) – đó là Ảnh Trang phục.
+Bước 1: Xác định bức ảnh chỉ có trang phục hoặc không có người mẫu hoàn chỉnh (hoặc thiếu đầu, tay, chân) – đó là Ảnh Trang phục.
 Bước 2: Với hai bức ảnh còn lại (có người mẫu đầy đủ), so sánh trang phục:
 Nếu trang phục khác với Ảnh Trang phục, đó là Ảnh Người mẫu.
 Nếu trang phục giống với Ảnh Trang phục, đó là Ảnh Kết quả.
@@ -598,7 +617,7 @@ Trả lời:
               variant="h6" 
               sx={{ color: 'white', mt: 2 }}
             >
-              Đang mặc thử đồ...
+              {loadingMessage || 'Đang mặc thử đồ...'}
             </Typography>
           </Box>
         )}

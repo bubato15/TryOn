@@ -8,11 +8,19 @@ import {
   IconButton, 
   Grid,
   Paper,
-  Tooltip
+  Tooltip,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Snackbar
 } from '@mui/material';
 import { 
   ArrowBack as BackIcon,
-  Palette as PaletteIcon
+  Palette as PaletteIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
@@ -119,6 +127,8 @@ const COLOR_PALETTE = [
 const SettingsPage = () => {
   const navigate = useNavigate();
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
+  const [openSnackbar, setOpenSnackbar] = useState(false);
 
   useEffect(() => {
     // Load saved theme color from localStorage
@@ -139,6 +149,30 @@ const SettingsPage = () => {
       detail: { color } 
     });
     window.dispatchEvent(event);
+  };
+
+  const handleResetApp = () => {
+    setOpenConfirmDialog(true);
+  };
+
+  const handleConfirmReset = () => {
+    // Xóa toàn bộ dữ liệu trong localStorage
+    localStorage.clear();
+    
+    // Reset màu theme
+    setSelectedColor(null);
+    
+    // Hiển thị thông báo
+    setOpenSnackbar(true);
+    setOpenConfirmDialog(false);
+  };
+
+  const handleCloseConfirmDialog = () => {
+    setOpenConfirmDialog(false);
+  };
+
+  const handleCloseSnackbar = () => {
+    setOpenSnackbar(false);
   };
 
   const handleGoBack = () => {
@@ -212,6 +246,44 @@ const SettingsPage = () => {
             </Grid>
           ))}
         </Grid>
+
+        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={handleResetApp}
+            startIcon={<DeleteIcon />}
+          >
+            Xóa toàn bộ dữ liệu
+          </Button>
+        </Box>
+
+        {/* Dialog xác nhận reset */}
+        <Dialog
+          open={openConfirmDialog}
+          onClose={handleCloseConfirmDialog}
+        >
+          <DialogTitle>Xác nhận xóa dữ liệu</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Bạn có chắc chắn muốn xóa toàn bộ dữ liệu ứng dụng? Hành động này không thể hoàn tác.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseConfirmDialog}>Hủy</Button>
+            <Button onClick={handleConfirmReset} color="error" autoFocus>
+              Xóa dữ liệu
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Snackbar thông báo */}
+        <Snackbar
+          open={openSnackbar}
+          autoHideDuration={3000}
+          onClose={handleCloseSnackbar}
+          message="Đã xóa toàn bộ dữ liệu ứng dụng"
+        />
       </Container>
     </Box>
   );
