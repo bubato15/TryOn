@@ -138,7 +138,7 @@ const ImageCropPage = () => {
             onZoomChange={setZoom}
             style={{
               containerStyle: {
-                height: 'calc(100vh - 200px)',
+                height: 'calc(100vh - 400px)',
                 position: 'relative',
                 width: '100%',
                 maxWidth: 500,
